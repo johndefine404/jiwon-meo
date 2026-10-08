@@ -12,7 +12,7 @@ import { kstDate, runDaily, runWeekly } from "./cron";
 import api from "./routes/api";
 
 const app = new Hono<{ Bindings: Env }>();
-export const WEEKLY_CRON = "0 0 * * MON"; // wrangler.toml 의 crons 와 같은 문자열
+const WEEKLY_CRON = "0 0 * * MON"; // wrangler.toml 의 crons 와 같은 문자열
 
 // 보안 머리말 (정적 파일은 public/_headers 가 맡는다)
 app.use("*", async (c, next) => {

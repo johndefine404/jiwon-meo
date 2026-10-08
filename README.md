@@ -129,7 +129,8 @@ npx wrangler deploy
 cd worker
 npm install
 npm test                                   # 단위·흐름 시험 (Node 내장 SQLite 로 D1 흉내)
-npx wrangler types
+npx wrangler types                         # 타입 파일(worker-configuration.d.ts)을 만든다
+npm run check                              # 타입 검사 (wrangler types 다음에)
 cp .dev.vars.example .dev.vars             # TOKEN_SECRET 를 채운다
 npx wrangler d1 migrations apply jiwon-meo --local
 npx wrangler dev --test-scheduled --var MOCK:1

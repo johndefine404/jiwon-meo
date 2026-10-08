@@ -8,7 +8,8 @@ compatibility_date = "2026-09-01"
 directory = "../public"
 not_found_handling = "404-page"
 # 브라우저로 직접 연 /api, /dev 주소도 404 화면이 아니라 워커가 받게 한다
-run_worker_first = ["/api/*", "/dev/*"]
+# /__scheduled 는 로컬 시험(wrangler dev --test-scheduled)에서 cron 을 바로 돌리는 주소다. 배포 환경에서는 워커가 404 로 답한다
+run_worker_first = ["/api/*", "/dev/*", "/__scheduled"]
 
 # 구독자, 조건, 공고, 발송 기록
 # 배포 전에: npx wrangler d1 create jiwon-meo  ->  나온 database_id 를 아래에 넣는다

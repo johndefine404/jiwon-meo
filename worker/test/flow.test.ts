@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { app } from "../src/index";
-import { runWeekly } from "../src/cron";
+import { runDaily, runWeekly } from "../src/cron";
 import { makeEnv, tokenFrom } from "./helpers";
 
 const owner = {
@@ -155,6 +155,69 @@ describe("주간 발송", () => {
     expect(sink[0].subject.startsWith("(광고) [지원냥]")).toBe(true);
     expect(sink[0].html).toContain("신청서 작성 도움 문의");
     expect(sink[0].text).toContain("보내는 곳: Define404");
+    expect(sink[0].text).toContain("문의: https://contact.define404.com");
+    expect(sink[0].text).toContain("광고 수신만 거부: https://jiwon.example.com/adoff#t=");
+    expect(sink[0].html).toContain("광고 수신만 거부");
+  });
+
+  it("광고 동의·철회마다 처리 결과 메일, 광고 수신만 거부해도 지원사업 메일은 계속", async () => {
+    const { env, sink } = makeEnv();
+    await subscribeAndConfirm(env, sink, "ad2@example.com", { marketing: true });
+    // 확정하면서 동의 처리 결과 알림
+    expect(sink.at(-1)!.subject).toBe("[지원냥] 광고성 정보 수신 동의 처리 결과 안내");
+    expect(sink.at(-1)!.text).not.toContain("신청서 작성 도움 문의"); // 알림에는 광고를 넣지 않는다
+    sink.length = 0;
+    await runWeekly(env, MONDAY);
+    const adOff = tokenFrom(sink[0].text, "adoff");
+    sink.length = 0;
+    const r = await post(env, "/api/marketing-off", { token: adOff });
+    expect(r.status).toBe(200);
+    expect(env.DB.raw.prepare("SELECT marketing_consent FROM accounts").get().marketing_consent).toBe(0);
+    expect(sink[0].subject).toBe("[지원냥] 광고성 정보 수신 철회 처리 결과 안내");
+    expect(env.DB.raw.prepare("SELECT value FROM consent_events WHERE kind = 'marketing' ORDER BY id DESC").get().value).toBe(0);
+    sink.length = 0;
+    await runWeekly(env, MONDAY + 7 * 86_400_000);
+    expect(sink).toHaveLength(1);
+    expect(sink[0].subject.startsWith("[지원냥]")).toBe(true);
+    expect(sink[0].text).not.toContain("신청서 작성 도움 문의");
+  });
+
+  it("조건 바꾸기 화면에서 동의를 바꿔도 결과 메일, 수신 거부 때도 철회 결과 메일", async () => {
+    const { env, sink } = makeEnv();
+    const manage = await subscribeAndConfirm(env, sink, "m@example.com");
+    sink.length = 0;
+    const put = (marketing: boolean) =>
+      app.request(
+        "/api/manage",
+        { method: "PUT", headers: { "Content-Type": "application/json", Authorization: `Bearer ${manage}` }, body: JSON.stringify({ profiles: [owner], marketing }) },
+        env,
+      );
+    expect((await put(true)).status).toBe(200);
+    expect(sink.at(-1)!.subject).toContain("동의 처리 결과");
+    expect((await put(false)).status).toBe(200);
+    expect(sink.at(-1)!.subject).toContain("철회 처리 결과");
+    expect(sink).toHaveLength(2);
+    await put(true);
+    sink.length = 0;
+    await post(env, "/api/unsubscribe", { token: manage });
+    expect(sink).toHaveLength(1);
+    expect(sink[0].to).toBe("m@example.com");
+    expect(sink[0].subject).toContain("철회 처리 결과");
+  });
+
+  it("밤 9시부터 아침 8시 사이 발송과 2년 지난 동의에는 광고를 넣지 않는다", async () => {
+    const { env, sink } = makeEnv();
+    await subscribeAndConfirm(env, sink, "night@example.com", { marketing: true });
+    sink.length = 0;
+    await runWeekly(env, Date.parse("2026-10-12T13:00:00Z")); // 22:00 KST
+    expect(sink[0].subject.startsWith("[지원냥]")).toBe(true);
+    expect(sink[0].html).not.toContain("신청서 작성 도움 문의");
+
+    env.DB.raw.prepare("UPDATE accounts SET marketing_consent_at = '2024-01-01T00:00:00.000Z'").run();
+    sink.length = 0;
+    await runWeekly(env, MONDAY + 7 * 86_400_000);
+    expect(sink[0].subject.startsWith("[지원냥]")).toBe(true);
+    expect(sink[0].text).not.toContain("광고 수신만 거부");
   });
 
   it("컨설턴트: 고객별로 묶어 한 통", async () => {
@@ -187,11 +250,14 @@ describe("주간 발송", () => {
     expect((await post(env, "/api/subscribe", { email: "d@example.com", kind: "owner", profiles: [owner, owner], privacy: true })).status).toBe(400);
   });
 
-  it("확인하지 않은 신청에는 보내지 않고 3일 뒤 지운다", async () => {
+  it("확인하지 않은 신청에는 보내지 않고 3일 안에 지운다 (매일 정리)", async () => {
     const { env } = makeEnv();
     await post(env, "/api/subscribe", { email: "p@example.com", kind: "owner", profiles: [owner], privacy: true });
-    expect((await runWeekly(env, MONDAY)).sent).toBe(0);
-    await runWeekly(env, Date.now() + 4 * 86_400_000);
+    expect((await runWeekly(env, Date.now())).sent).toBe(0);
+    await runDaily(env, Date.now() + 24 * 3600_000);
+    expect(env.DB.raw.prepare("SELECT count(*) n FROM accounts").get().n).toBe(1);
+    await runDaily(env, Date.now() + 49 * 3600_000);
     expect(env.DB.raw.prepare("SELECT count(*) n FROM accounts").get().n).toBe(0);
+    expect(env.DB.raw.prepare("SELECT count(*) n FROM profiles").get().n).toBe(0);
   });
 });

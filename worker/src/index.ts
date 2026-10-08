@@ -8,10 +8,11 @@ import { loadFixture, type BizinfoItem } from "./lib/bizinfo";
 import { buildDigest } from "./lib/digest";
 import { matchAll, type Profile } from "./lib/match";
 import { fallbackSummary } from "./lib/summary";
-import { kstDate, runWeekly } from "./cron";
+import { kstDate, runDaily, runWeekly } from "./cron";
 import api from "./routes/api";
 
 const app = new Hono<{ Bindings: Env }>();
+export const WEEKLY_CRON = "0 0 * * MON"; // wrangler.toml 의 crons 와 같은 문자열
 
 // 보안 머리말 (정적 파일은 public/_headers 가 맡는다)
 app.use("*", async (c, next) => {
@@ -72,8 +73,7 @@ app.get("/dev/digest", (c) => {
     today,
     subscribedAt: today,
     marketing: c.req.query("marketing") !== "0",
-    adLabel: c.env.AD_LABEL !== "0",
-    links: { manage: "#manage", unsubscribe: "#unsubscribe", contact: c.env.CONTACT_URL, site: c.env.PUBLIC_URL },
+    links: { manage: "#manage", unsubscribe: "#unsubscribe", adOff: "#adoff", contact: c.env.CONTACT_URL, site: c.env.PUBLIC_URL },
     senderInfo: c.env.SENDER_INFO,
     sample: true,
   });
@@ -90,7 +90,9 @@ app.onError((err, c) => {
 export default {
   fetch: app.fetch,
   async scheduled(event: ScheduledController, env: Env, ctx: ExecutionContext) {
-    ctx.waitUntil(runWeekly(env, event.scheduledTime));
+    // 월요일 09:00 KST 는 주간 발송, 나머지(매일 03:00 KST)는 정리만
+    if (event.cron === WEEKLY_CRON) ctx.waitUntil(runWeekly(env, event.scheduledTime));
+    else ctx.waitUntil(runDaily(env, event.scheduledTime));
   },
 } satisfies ExportedHandler<Env>;
 

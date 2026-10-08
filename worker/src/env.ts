@@ -18,15 +18,12 @@ export interface Env {
   MAIL_FROM: string;
   // 메일 끝에 적는 보내는 곳 정보 (광고성 정보 전송자 명칭·연락처)
   SENDER_INFO: string;
-  // "신청서 작성 도움 문의" 버튼 주소
+  // "신청서 작성 도움 문의" 버튼 주소. 광고성 메일의 보내는 곳 연락처로도 적는다
   CONTACT_URL: string;
 
   // 공고 한 줄 요약에 Workers AI 를 쓸지 ("1" 이면 사용)
   USE_AI_SUMMARY?: string;
   AI_MODEL: string;
-
-  // 광고성 정보를 넣은 메일 제목 앞에 "(광고)"를 붙인다. "0" 이면 끈다 (법률 확인 필요)
-  AD_LABEL?: string;
 
   // "1" 이면 외부 호출 없이 예시 데이터·콘솔 메일로만 동작 (로컬 시험)
   MOCK?: string;

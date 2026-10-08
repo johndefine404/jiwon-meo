@@ -33,7 +33,6 @@ export function makeEnv() {
     CONTACT_URL: "https://contact.define404.com",
     AI_MODEL: "@cf/meta/llama-3.1-8b-instruct",
     MOCK: "1",
-    AD_LABEL: "1",
     MAIL_SINK: sink,
   };
   return { env, sink };

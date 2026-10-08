@@ -3,7 +3,10 @@ import { BIZ_TYPES, INDUSTRY_NAMES, INTEREST_NAMES, REGIONS, YEAR_NAMES, type Bi
 import type { Profile } from "./match";
 
 export const MAX_CLIENTS = 30;
-export const MARKETING_VALID_DAYS = 730; // 광고성 정보 수신 동의는 2년마다 다시 확인 (정보통신망법 시행령 62조의3)
+// 광고성 정보 수신 동의는 2년마다 확인해야 한다 (정보통신망법 제50조 제8항, 시행령 제62조의3).
+// 이 프로젝트는 확인 안내 메일 대신, 동의 후 2년이 지나면 동의를 끝난 것으로 보고 광고를 빼는 쪽을 택했다
+export const MARKETING_VALID_DAYS = 730;
+export const PENDING_HOURS = 48; // 확인하지 않은 신청을 지우는 기준. 매일 정리하므로 신청 후 3일 안에 지워진다
 
 export type Account = {
   id: string;
@@ -187,6 +190,16 @@ export async function unsubscribe(db: D1Database, id: string): Promise<void> {
       )
       .bind(at, id),
     consentEvent(db, id, "unsubscribe", 1, at),
+  ]);
+}
+
+// 확인하지 않은 신청(메일 주소, 조건)을 지운다. 매일 정리 cron 과 주간 발송 앞에서 부른다
+export async function cleanupPending(db: D1Database, nowMs = Date.now()): Promise<void> {
+  const stale = new Date(nowMs - PENDING_HOURS * 3600_000).toISOString();
+  await db.batch([
+    db.prepare("DELETE FROM profiles WHERE account_id IN (SELECT id FROM accounts WHERE status = 'pending' AND created_at < ?)").bind(stale),
+    db.prepare("DELETE FROM consent_events WHERE account_id IN (SELECT id FROM accounts WHERE status = 'pending' AND created_at < ?)").bind(stale),
+    db.prepare("DELETE FROM accounts WHERE status = 'pending' AND created_at < ?").bind(stale),
   ]);
 }
 

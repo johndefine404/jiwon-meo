@@ -3,7 +3,7 @@ import { Hono } from "hono";
 import { BIZ_TYPES, INDUSTRY_NAMES, INTEREST_NAMES, REGIONS, YEAR_NAMES } from "../data/options";
 import type { Env } from "../env";
 import { sendMail } from "../lib/mail";
-import { confirmMail, link, manageMail } from "../lib/notices";
+import { confirmMail, link, manageMail, marketingResultMail } from "../lib/notices";
 import {
   activate,
   claimMailSlot,
@@ -13,6 +13,7 @@ import {
   getProfiles,
   marketingValid,
   MAX_CLIENTS,
+  nowIso,
   normalizeEmail,
   parseProfiles,
   replaceProfiles,
@@ -100,13 +101,28 @@ function bearer(c: any): string | undefined {
   return h.startsWith("Bearer ") ? h.slice(7).trim() : undefined;
 }
 
+// 광고성 정보 수신 동의·철회 처리 결과를 메일로 알린다 (정보통신망법 제50조 제7항).
+// 알림 발송이 실패해도 동의·철회 처리 자체는 되돌리지 않는다 (실패는 기록만)
+async function notifyMarketing(c: any, acc: Account, email: string | null, change: "on" | "off" | "unsubscribed", at: string) {
+  if (!email) return;
+  try {
+    await sendMail(c.env, await marketingResultMail(c.env, email, acc.id, acc.token_version, change, at));
+  } catch (e) {
+    console.error("marketing notice failed", acc.id, e);
+  }
+}
+
 const INVALID = { ok: false, error: "링크가 만료되었거나 올바르지 않습니다. 첫 화면에서 링크를 다시 받아 주세요." };
 
 api.post("/confirm", async (c) => {
   const body = await readJson(c);
   const acc = await accountFrom(c, body?.token, ["confirm"]);
   if (!acc || acc.status === "unsubscribed") return c.json(INVALID, 401);
-  if (acc.status === "pending") await activate(c.env.DB, acc.id);
+  if (acc.status === "pending") {
+    await activate(c.env.DB, acc.id);
+    // 신청 때 광고 수신에 동의했다면 구독이 확정된 지금 동의 처리 결과를 알린다
+    if (acc.marketing_consent) await notifyMarketing(c, acc, acc.email, "on", nowIso());
+  }
   // 확인한 사람에게 바로 조건 바꾸기 링크를 준다
   const manage = await link(c.env, "manage", "manage", acc.id, acc.token_version);
   return c.json({ ok: true, manageUrl: manage });
@@ -146,10 +162,13 @@ api.put("/manage", async (c) => {
   const profiles = parseProfiles(body.profiles, acc.kind);
   if (typeof profiles === "string") return c.json({ ok: false, error: profiles }, 400);
   await replaceProfiles(c.env.DB, acc.id, profiles);
+  let notice = "";
   if (typeof body.marketing === "boolean" && body.marketing !== marketingValid(acc)) {
     await setMarketing(c.env.DB, acc.id, body.marketing);
+    await notifyMarketing(c, acc, acc.email, body.marketing ? "on" : "off", nowIso());
+    notice = ` 광고성 정보 수신 ${body.marketing ? "동의" : "철회"} 처리 결과를 메일로 보내 드렸습니다.`;
   }
-  return c.json({ ok: true, message: "저장했습니다. 다음 주 메일부터 바뀐 조건으로 보내 드립니다." });
+  return c.json({ ok: true, message: `저장했습니다. 다음 주 메일부터 바뀐 조건으로 보내 드립니다.${notice}` });
 });
 
 // 수신 거부. 화면 버튼(JSON token), 조건 바꾸기 화면(Bearer), 메일 앱의 한 번 누르기(RFC 8058, ?t=) 모두 받는다
@@ -161,8 +180,27 @@ api.post("/unsubscribe", async (c) => {
   }
   const acc = await accountFrom(c, token, ["unsub", "manage"]);
   if (!acc) return c.json(INVALID, 401);
-  if (acc.status !== "unsubscribed") await unsubscribe(c.env.DB, acc.id);
+  if (acc.status !== "unsubscribed") {
+    await unsubscribe(c.env.DB, acc.id);
+    // 광고 수신 동의가 남아 있던 분께는 동의 철회 처리 결과를 한 번 알린다 (메일 주소는 이미 지웠고, 이 한 통에만 쓴다)
+    if (acc.marketing_consent) await notifyMarketing(c, acc, acc.email, "unsubscribed", nowIso());
+  }
   return c.json({ ok: true, message: "수신 거부를 마쳤습니다. 메일 주소와 조건을 지웠고 더 이상 메일을 보내지 않습니다." });
+});
+
+// 광고 수신만 거부 (지원사업 메일은 계속 받는다). 주간 메일의 "광고 수신만 거부" 화면 버튼(JSON token)과 조건 바꾸기 화면(Bearer)
+api.post("/marketing-off", async (c) => {
+  let token: string | undefined = bearer(c);
+  if (!token) {
+    const body = await readJson(c);
+    token = body?.token;
+  }
+  const acc = await accountFrom(c, token, ["adoff", "manage"]);
+  if (!acc || acc.status !== "active") return c.json(INVALID, 401);
+  if (!acc.marketing_consent) return c.json({ ok: true, message: "이미 광고 수신에 동의하지 않은 상태입니다. 지원사업 메일은 그대로 받으십니다." });
+  await setMarketing(c.env.DB, acc.id, false);
+  await notifyMarketing(c, acc, acc.email, "off", nowIso());
+  return c.json({ ok: true, message: "광고 수신 거부를 마쳤습니다. 지원사업 메일은 그대로 받으시고, 처리 결과를 메일로 보내 드렸습니다." });
 });
 
 export default api;

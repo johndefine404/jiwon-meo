@@ -9,9 +9,8 @@ export type DigestInput = {
   summaries: Record<string, string>;
   today: string; // YYYY-MM-DD
   subscribedAt: string; // 구독 확인한 날 YYYY-MM-DD
-  marketing: boolean; // 광고성 정보 수신 동의 (유효한 것)
-  adLabel: boolean; // 광고성 정보가 들어가면 제목에 (광고)
-  links: { manage: string; unsubscribe: string; contact: string; site: string };
+  marketing: boolean; // 광고성 안내를 넣는가 (유효한 수신 동의가 있고, 한국 시간 08~21시에 보낼 때만)
+  links: { manage: string; unsubscribe: string; adOff: string; contact: string; site: string };
   senderInfo: string;
   sample: boolean; // 예시 데이터로 만든 메일
 };
@@ -106,8 +105,9 @@ export function buildDigest(input: DigestInput): Digest {
   const count = input.groups.reduce((n, g) => n + g.matches.length, 0);
   const urgent = input.groups.reduce((n, g) => n + g.matches.filter((m) => m.urgent).length, 0);
   const consultant = input.kind === "consultant";
-  const ad = input.marketing; // 광고성 문구(문의 버튼)는 동의한 사람에게만 넣는다
-  const prefix = ad && input.adLabel ? "(광고) " : "";
+  // 광고성 문구(문의 버튼)는 동의한 사람에게만 넣고, 넣으면 제목 앞에 반드시 (광고)를 붙인다
+  const ad = input.marketing;
+  const prefix = ad ? "(광고) " : "";
   const subject = consultant
     ? `${prefix}[지원냥] 고객 ${input.groups.length}곳, 이번 주 지원사업 ${count}건 (마감 임박 ${urgent}건)`
     : `${prefix}[지원냥] 이번 주 맞는 지원사업 ${count}건 (마감 임박 ${urgent}건)`;
@@ -156,8 +156,10 @@ ${cta}
 <tr><td style="padding:16px 0 0 0;border-top:1px solid ${C.line};font-size:12px;color:${C.sub};line-height:1.7">
 ${esc(why)}<br>
 신청 자격과 마감일은 반드시 공고 원문에서 다시 확인해 주세요. 공고 정보 출처: 기업마당(bizinfo.go.kr).<br>
-<a href="${esc(input.links.manage)}" style="color:${C.accent}">조건 바꾸기</a> · <a href="${esc(input.links.unsubscribe)}" style="color:${C.accent}">수신 거부</a><br>
-보내는 곳: ${esc(input.senderInfo)}
+<a href="${esc(input.links.manage)}" style="color:${C.accent}">조건 바꾸기</a> · <a href="${esc(input.links.unsubscribe)}" style="color:${C.accent}">수신 거부</a>${
+    ad ? ` · <a href="${esc(input.links.adOff)}" style="color:${C.accent}">광고 수신만 거부</a>` : ""
+  }<br>
+${ad ? "광고성 정보 수신에 동의하셔서 Define404 안내가 함께 실렸습니다. 광고 수신만 거부하셔도 지원사업 메일은 계속 받으시며, 거부에 드는 비용은 없습니다.<br>" : ""}보내는 곳: ${esc(input.senderInfo)} · 문의: <a href="${esc(input.links.contact)}" style="color:${C.accent}">${esc(input.links.contact)}</a>
 </td></tr>
 </table></td></tr></table></body></html>`;
 
@@ -187,7 +189,11 @@ ${esc(why)}<br>
   lines.push("신청 자격과 마감일은 반드시 공고 원문에서 다시 확인해 주세요. 공고 정보 출처: 기업마당(bizinfo.go.kr).");
   lines.push(`조건 바꾸기: ${input.links.manage}`);
   lines.push(`수신 거부: ${input.links.unsubscribe}`);
-  lines.push(`보내는 곳: ${input.senderInfo}`);
+  if (ad) {
+    lines.push(`광고 수신만 거부: ${input.links.adOff}`);
+    lines.push("광고성 정보 수신에 동의하셔서 Define404 안내가 함께 실렸습니다. 광고 수신만 거부하셔도 지원사업 메일은 계속 받으시며, 거부에 드는 비용은 없습니다.");
+  }
+  lines.push(`보내는 곳: ${input.senderInfo} · 문의: ${input.links.contact}`);
 
   return { subject, html, text: lines.join("\n"), count, urgent };
 }

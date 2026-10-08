@@ -28,9 +28,10 @@ name = "LIMITER"
 namespace_id = "2001"
 simple = { limit = 10, period = 60 }
 
-# 매주 월요일 00:00 UTC = 한국 시간 월요일 09:00
+# 매주 월요일 00:00 UTC = 한국 시간 월요일 09:00 (주간 발송)
+# 매일 18:00 UTC = 한국 시간 03:00 (확인하지 않은 신청 정리만. 메일은 보내지 않는다)
 [triggers]
-crons = ["0 0 * * MON"]
+crons = ["0 0 * * MON", "0 18 * * *"]
 
 [vars]
 PUBLIC_URL = "http://localhost:8787"
@@ -39,5 +40,4 @@ SENDER_INFO = "Define404 (john@define404.com)"
 CONTACT_URL = "https://contact.define404.com"
 AI_MODEL = "@cf/meta/llama-3.1-8b-instruct"
 USE_AI_SUMMARY = "0"
-AD_LABEL = "1"
 MOCK = "0"

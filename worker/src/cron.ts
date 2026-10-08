@@ -6,7 +6,7 @@ import { buildDigest, type DigestGroup } from "./lib/digest";
 import { sendMail } from "./lib/mail";
 import { link, unsubscribeUrls } from "./lib/notices";
 import { matchAll } from "./lib/match";
-import { getProfiles, marketingValid, type Account } from "./lib/store";
+import { cleanupPending, getProfiles, marketingValid, type Account } from "./lib/store";
 import { summarize } from "./lib/summary";
 
 export const BATCH = 200; // 한 번 실행에 보내는 계정 수 (넘으면 다음 실행에서 이어 보낸다)
@@ -14,6 +14,13 @@ const AI_PER_RUN = 50;
 
 export function kstDate(ms: number): string {
   return new Date(ms + 9 * 3600_000).toISOString().slice(0, 10);
+}
+
+// 광고성 정보를 보내도 되는 시각인가 (한국 시간 08:00~21:00). 야간 전송 동의는 따로 받지 않으므로
+// 그 밖의 시각에 나가는 메일에는 광고 안내를 넣지 않는다 (정보통신망법 제50조 제3항)
+export function adHourOk(ms: number): boolean {
+  const h = new Date(ms + 9 * 3600_000).getUTCHours();
+  return h >= 8 && h < 21;
 }
 
 export async function loadPrograms(env: Env, today: string): Promise<{ programs: Program[]; sample: boolean }> {
@@ -52,6 +59,7 @@ export async function buildFor(
   summaries: Record<string, string>,
   today: string,
   sample: boolean,
+  nowMs = Date.now(),
 ) {
   const profiles = await getProfiles(env.DB, acc.id);
   const groups: DigestGroup[] = profiles.map((profile) => {
@@ -60,15 +68,15 @@ export async function buildFor(
   });
   const manage = await link(env, "manage", "manage", acc.id, acc.token_version);
   const unsub = await unsubscribeUrls(env, acc.id, acc.token_version);
+  const adOff = await link(env, "adoff", "adoff", acc.id, acc.token_version);
   const digest = buildDigest({
     kind: acc.kind,
     groups,
     summaries,
     today,
     subscribedAt: (acc.confirmed_at || acc.created_at).slice(0, 10),
-    marketing: marketingValid(acc),
-    adLabel: env.AD_LABEL !== "0",
-    links: { manage, unsubscribe: unsub.page, contact: env.CONTACT_URL, site: env.PUBLIC_URL },
+    marketing: marketingValid(acc, new Date(nowMs)) && adHourOk(nowMs),
+    links: { manage, unsubscribe: unsub.page, adOff, contact: env.CONTACT_URL, site: env.PUBLIC_URL },
     senderInfo: env.SENDER_INFO,
     sample,
   });
@@ -79,13 +87,11 @@ export async function runWeekly(env: Env, scheduledMs = Date.now()): Promise<{ w
   const today = kstDate(scheduledMs);
   const week = today;
   const db = env.DB;
+  // 실제 보내는 시각 = 예정 시각 + 지난 시간 (광고 안내를 넣어도 되는 시각인지 볼 때 쓴다)
+  const startedAt = Date.now();
+  const clock = () => scheduledMs + (Date.now() - startedAt);
 
-  // 48시간 넘게 확인하지 않은 신청은 지운다
-  const stale = new Date(scheduledMs - 3 * 86_400_000).toISOString();
-  await db.batch([
-    db.prepare("DELETE FROM profiles WHERE account_id IN (SELECT id FROM accounts WHERE status = 'pending' AND created_at < ?)").bind(stale),
-    db.prepare("DELETE FROM accounts WHERE status = 'pending' AND created_at < ?").bind(stale),
-  ]);
+  await cleanupPending(db, scheduledMs);
 
   const { programs, sample } = await loadPrograms(env, today);
   const summaries = await refreshPrograms(env, programs);
@@ -101,7 +107,7 @@ export async function runWeekly(env: Env, scheduledMs = Date.now()): Promise<{ w
   let skipped = 0;
   for (const acc of results || []) {
     try {
-      const { digest, unsub } = await buildFor(env, acc, programs, summaries, today, sample);
+      const { digest, unsub } = await buildFor(env, acc, programs, summaries, today, sample, clock());
       if (digest.count > 0) {
         await sendMail(env, {
           to: acc.email!,
@@ -127,4 +133,9 @@ export async function runWeekly(env: Env, scheduledMs = Date.now()): Promise<{ w
   }
   console.log(`[cron] week=${week} programs=${programs.length} sample=${sample} sent=${sent} skipped=${skipped}`);
   return { week, sent, skipped, programs: programs.length };
+}
+
+// 매일 정리: 확인하지 않은 신청만 지운다. 메일은 보내지 않는다
+export async function runDaily(env: Env, scheduledMs = Date.now()): Promise<void> {
+  await cleanupPending(env.DB, scheduledMs);
 }

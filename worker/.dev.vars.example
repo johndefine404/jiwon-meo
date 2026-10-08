@@ -1,0 +1,11 @@
+# 로컬 시험용 비밀값. 이 파일을 .dev.vars 로 복사해서 채운다 (.dev.vars 는 저장소에 올리지 않는다)
+# 운영에서는 같은 이름으로 npx wrangler secret put <이름> 을 쓴다
+
+# 메일 링크 서명 비밀값. 32자 이상 아무 값 (예: openssl rand -hex 32)
+TOKEN_SECRET=
+
+# 기업마당 지원사업정보 API 인증키. 비우면 예시 데이터로 동작
+BIZINFO_API_KEY=
+
+# 발송 (Resend). 비우면 콘솔에 찍기만 한다
+RESEND_API_KEY=

@@ -1,0 +1,26 @@
+{
+  "name": "jiwon-meo-worker",
+  "private": true,
+  "version": "0.1.0",
+  "description": "지원냥: 조건에 맞는 정부지원사업을 매주 메일로 보내는 소상공인용 알리미",
+  "author": "Define404 <john@define404.com>",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --test-scheduled",
+    "deploy": "wrangler deploy",
+    "types": "wrangler types",
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "db:local": "wrangler d1 migrations apply jiwon-meo --local"
+  },
+  "dependencies": {
+    "hono": "^4.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^3.2.0",
+    "wrangler": "^4.40.0"
+  }
+}

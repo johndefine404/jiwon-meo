@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>조건 바꾸기: 지원냥</title>
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<link rel="stylesheet" href="./app.css">
+</head>
+<body>
+<div class="wrap narrow">
+  <header class="top"><a class="brand" href="./"><img src="./logo.svg" alt="">지원냥 <small>by Define404</small></a></header>
+  <main class="page">
+    <h1 id="title">조건 바꾸기</h1>
+    <p class="d" id="desc">불러오는 중입니다.</p>
+    <form class="panel" id="form" hidden novalidate>
+      <div id="editor"></div>
+      <div class="consent">
+        <label class="check"><input type="checkbox" name="marketing"><span><b>[선택]</b> 광고성 정보 수신 동의 (메일 끝 Define404 신청서 작성 도움 안내, 제목에 (광고) 표시)</span></label>
+      </div>
+      <button class="btn" type="submit">저장하기</button>
+      <p class="msg" id="msg" role="status" aria-live="polite"></p>
+    </form>
+    <div class="stack" id="danger" hidden>
+      <h2>메일을 그만 받으려면</h2>
+      <p class="d">수신 거부를 누르면 메일 주소와 조건을 바로 지우고 더 이상 보내지 않습니다.</p>
+      <button class="btn danger" id="unsub" type="button">수신 거부</button>
+      <p class="msg" id="unsub-msg" role="status" aria-live="polite"></p>
+    </div>
+  </main>
+</div>
+<script src="./form.js"></script>
+<script src="./manage.js"></script>
+</body>
+</html>

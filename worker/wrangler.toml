@@ -36,9 +36,12 @@ crons = ["0 0 * * MON", "0 18 * * *"]
 
 [vars]
 PUBLIC_URL = "http://localhost:8787"
+# 보내는 사람. Gmail API 로 보낼 때는 그 계정 주소(또는 그 계정에 등록된 보내는 주소)여야 한다
 MAIL_FROM = "지원냥 <onboarding@resend.dev>"
 SENDER_INFO = "Define404 (john@define404.com)"
 CONTACT_URL = "https://contact.define404.com"
+# 동의 칸과 화면 아래쪽 "개인정보 처리방침" 링크 주소
+PRIVACY_URL = "https://contact.define404.com/privacy.html"
 AI_MODEL = "@cf/meta/llama-3.1-8b-instruct"
 USE_AI_SUMMARY = "0"
 MOCK = "0"

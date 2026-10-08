@@ -6,6 +6,8 @@
   const msg = document.getElementById("msg");
   const root = document.getElementById("editor");
   let ed = await J.editor(root, "owner");
+  const m = await J.meta();
+  if (m && m.dataReady === false) document.getElementById("data-notice").hidden = false;
 
   form.querySelectorAll('input[name="kind"]').forEach((r) =>
     r.addEventListener("change", async () => {

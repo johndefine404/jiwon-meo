@@ -87,6 +87,10 @@ details.terms p{margin:8px 0 0}
 .btn[disabled]{opacity:.5;cursor:wait}
 .btn.ghost{background:#fff;color:var(--ink);border:1px solid var(--line-2)}
 .btn.danger{background:#fff;color:var(--urgent);border:1px solid var(--urgent)}
+.policy{margin:0 0 12px 28px;font-size:13px}
+.policy a,details.terms a,footer a[data-privacy]{color:var(--accent);font-weight:600}
+.notice{font-size:14px;color:var(--ink);background:var(--accent-soft);border-radius:var(--r);padding:10px 12px;margin:0 0 18px}
+footer.mini{padding:24px 0 48px;font-size:13px}
 .msg{margin:12px 0 0;font-size:14px;padding:10px 12px;border-radius:var(--r);display:none}
 .msg.ok{display:block;background:var(--accent-soft);color:var(--accent)}
 .msg.err{display:block;background:var(--urgent-soft);color:var(--urgent)}
@@ -144,7 +148,7 @@ footer form .btn{width:auto;min-height:44px;font-size:14px}
   .help .btn{width:100%}
   table.rules th{width:84px;padding:12px}
   table.rules td{padding:12px}
-  details.terms{margin-left:0}
+  details.terms,.policy{margin-left:0}
   details.terms dl{grid-template-columns:1fr}
   footer form{flex-direction:column}
   footer form .btn{width:100%}

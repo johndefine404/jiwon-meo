@@ -23,6 +23,9 @@ import {
   type Account,
 } from "../lib/store";
 import { verifyToken, type Purpose } from "../lib/token";
+import { dataReady } from "../cron";
+
+export const DEFAULT_PRIVACY_URL = "https://contact.define404.com/privacy.html";
 
 const api = new Hono<{ Bindings: Env }>();
 
@@ -37,6 +40,9 @@ api.get("/meta", (c) =>
     bizTypes: BIZ_TYPES,
     years: YEAR_NAMES,
     maxClients: MAX_CLIENTS,
+    privacyUrl: c.env.PRIVACY_URL || DEFAULT_PRIVACY_URL,
+    // false 면 첫 화면에 "첫 주간 메일은 공고 데이터 연결 뒤부터" 안내를 띄운다
+    dataReady: dataReady(c.env),
   }),
 );
 

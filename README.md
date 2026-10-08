@@ -23,7 +23,7 @@
 | 매칭 | 지역, 사업자 구분, 업력, 업종, 관심 분야, 접수 기간을 규칙으로 거릅니다. 확실히 안 맞는 공고만 빼고, 애매하면 넣고 이유를 적습니다 |
 | 마감 강조 | 7일 이내 마감은 맨 위에, 접수 전이면 "접수 예정", 끝 날짜가 없으면 "상시 접수" |
 | 한 줄 요약 | 기본은 사업 개요 첫 문장. `USE_AI_SUMMARY=1`이면 Workers AI로 한 줄을 만듭니다 (공고당 한 번, 저장해 두고 다시 씀) |
-| 주간 발송 | Cron이 매주 월요일 09:00(한국 시간)에 구독자별 메일을 만들어 Resend로 보냅니다. 맞는 공고가 없는 주에는 보내지 않습니다 |
+| 주간 발송 | Cron이 매주 월요일 09:00(한국 시간)에 구독자별 메일을 만들어 Gmail API(또는 Resend)로 보냅니다. 맞는 공고가 없는 주에는 보내지 않습니다 |
 | 조건 바꾸기 | 메일마다 서명된 링크가 붙습니다. 링크를 잃어버리면 첫 화면 아래에서 다시 받습니다 |
 | 수신 거부 | 메일마다 링크가 있고, 메일 앱의 "구독 취소" 버튼(한 번 누르기, RFC 8058)도 받습니다. 거부하면 메일 주소와 조건을 바로 지웁니다. 광고가 실린 메일에는 "광고 수신만 거부" 링크도 붙습니다 |
 | 컨설턴트 | 고객 별칭별로 조건을 따로 두고, 메일은 고객별 묶음(묶음당 최대 10건) |
@@ -32,7 +32,7 @@
 ```
 매주 월 09:00 KST (Cron)
   └─ 기업마당 API ─> 공고 정리 ─> (선택) Workers AI 한 줄 요약 ─> D1 저장
-       └─ 구독자마다: 조건별 매칭 ─> 메일 만들기 ─> Resend 발송 ─> 발송 기록
+       └─ 구독자마다: 조건별 매칭 ─> 메일 만들기 ─> Gmail API 또는 Resend 발송 ─> 발송 기록
 첫 화면 (public/) ─ /api/subscribe ─> 확인 메일 ─> /confirm ─> 구독 시작
 메일 속 링크 ─> /manage (조건 바꾸기) · /unsubscribe (수신 거부) · /adoff (광고 수신만 거부)
 매일 03:00 KST (Cron) ─> 확인하지 않은 신청 정리 (메일은 보내지 않음)
@@ -45,7 +45,7 @@
 3. 등록하면 인증키가 화면에 나오고 같은 내용이 메일로도 옵니다. 키 분실 문의는 02-867-9765 (기업마당 안내 화면 기준)
 4. 키를 비밀값으로 넣습니다: `npx wrangler secret put BIZINFO_API_KEY`
 
-키가 없으면 `worker/fixtures/programs.sample.json`의 예시 공고 16건으로 동작합니다. 예시 공고는 지어낸 것이며 제목 끝에 "(예시)"가 붙고, 메일에도 "예시 데이터"라고 적힙니다.
+키가 없으면 운영에서는 주간 발송을 건너뛰고 로그만 남깁니다(예시 공고를 구독자에게 보내지 않습니다). 구독과 이중 확인은 그대로 되고, 첫 화면에는 "첫 주간 메일은 공고 데이터 연결이 끝난 뒤부터 나간다"는 안내가 뜹니다. `MOCK = "1"`인 로컬 시험에서만 `worker/fixtures/programs.sample.json`의 예시 공고 16건으로 동작합니다. 예시 공고는 지어낸 것이며 제목 끝에 "(예시)"가 붙고, 메일에도 "예시 데이터"라고 적힙니다.
 
 ### API 요약 (2026-10-09 기업마당 안내 화면 기준)
 
@@ -59,7 +59,7 @@
 ### 1. 준비물
 
 - Cloudflare 무료 계정, Node.js 20 이상
-- (발송) Resend 계정과 보내는 도메인 인증
+- (발송) Google Workspace 또는 Gmail 계정의 OAuth 클라이언트, 또는 Resend 계정과 보내는 도메인 인증
 - (선택) 기업마당 API 키
 
 ### 2. 배포
@@ -71,20 +71,40 @@ npx wrangler login
 npx wrangler d1 create jiwon-meo        # 나온 database_id 를 wrangler.toml 에 넣는다
 npx wrangler d1 migrations apply jiwon-meo --remote
 npx wrangler secret put TOKEN_SECRET       # 32자 이상 아무 값 (openssl rand -hex 32)
-npx wrangler secret put RESEND_API_KEY
-npx wrangler secret put BIZINFO_API_KEY    # 없으면 예시 데이터로 동작
+# 발송: Gmail API (아래 "Gmail API로 보내기") 또는 Resend 중 하나
+npx wrangler secret put GMAIL_CLIENT_ID
+npx wrangler secret put GMAIL_CLIENT_SECRET
+npx wrangler secret put GMAIL_REFRESH_TOKEN
+# npx wrangler secret put RESEND_API_KEY
+npx wrangler secret put BIZINFO_API_KEY    # 없으면 주간 발송을 건너뜀
 npx wrangler deploy
 ```
 
-`wrangler.toml`의 `[vars]`에서 `PUBLIC_URL`(메일 링크 기준 주소), `MAIL_FROM`, `SENDER_INFO`(메일 끝 보내는 곳), `CONTACT_URL`(문의 버튼 주소)을 바꿉니다.
+`wrangler.toml`의 `[vars]`에서 `PUBLIC_URL`(메일 링크 기준 주소), `MAIL_FROM`, `SENDER_INFO`(메일 끝 보내는 곳), `CONTACT_URL`(문의 버튼 주소), `PRIVACY_URL`(개인정보 처리방침 주소)을 바꿉니다.
+
+### Gmail API로 보내기
+
+발송 순서는 Gmail API(비밀값 셋이 다 있을 때) > Resend(`RESEND_API_KEY`) > 콘솔 출력입니다. Gmail은 메일 보내기 권한(`gmail.send`)만 있는 갱신 토큰을 씁니다.
+
+1. Google Cloud 콘솔에서 프로젝트를 만들고 "Gmail API"를 사용 설정합니다
+2. "OAuth 동의 화면"을 만들고 범위에 `https://www.googleapis.com/auth/gmail.send`만 넣습니다. Workspace라면 사용자 유형을 "내부"로 두면 검수 없이 쓸 수 있습니다
+3. "사용자 인증 정보"에서 OAuth 클라이언트 ID를 "데스크톱 앱" 유형으로 만들고 JSON을 내려받습니다 (`client_id`, `client_secret`)
+4. 보내는 계정으로 로그인해 한 번 동의하고 갱신 토큰을 받습니다. 예를 들어 Python `google-auth-oauthlib`의 `InstalledAppFlow.from_client_secrets_file(파일, ["https://www.googleapis.com/auth/gmail.send"]).run_local_server(access_type="offline", prompt="consent")`가 돌려주는 `refresh_token`입니다
+5. 세 값을 비밀값으로 넣습니다. 화면에 찍지 않도록 표준 입력으로 넘깁니다: `cat 값파일 | npx wrangler secret put GMAIL_REFRESH_TOKEN`
+6. `MAIL_FROM`의 주소는 그 계정 주소(또는 그 계정에 등록된 보내는 주소)로 맞춥니다. 예: `지원냥 <you@example.com>`
+
+워커는 갱신 토큰으로 접근 토큰을 받아 만료 전까지 메모리에 두고, 제목·보내는 사람 이름을 UTF-8로 인코딩한 multipart/alternative(글자, HTML) 메시지를 직접 만들어 보냅니다. 수신 거부 머리글(List-Unsubscribe, List-Unsubscribe-Post)도 그대로 붙습니다.
 
 ## 설정 값
 
 | 이름 | 위치 | 설명 |
 |---|---|---|
 | `TOKEN_SECRET` | secret | 메일 링크 서명 비밀값. 바꾸면 이미 보낸 링크가 모두 무효 |
-| `BIZINFO_API_KEY` | secret | 기업마당 인증키 |
-| `RESEND_API_KEY` | secret | 없으면 메일을 콘솔에 찍기만 합니다 |
+| `BIZINFO_API_KEY` | secret | 기업마당 인증키. 없으면 주간 발송을 건너뜁니다 |
+| `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN` | secret | 셋 다 있으면 Gmail API로 보냅니다 (`gmail.send` 권한만) |
+| `RESEND_API_KEY` | secret | Gmail 값이 없을 때 씁니다. 둘 다 없으면 메일을 콘솔에 찍기만 합니다 |
+| `REPLY_TO` | vars | (선택) 답장 받을 주소 |
+| `PRIVACY_URL` | vars | 동의 칸과 화면 아래쪽 "개인정보 처리방침" 링크 주소 |
 | `PUBLIC_URL` | vars | 메일 속 링크의 기준 주소 |
 | `MAIL_FROM` | vars | 보내는 사람 |
 | `SENDER_INFO` | vars | 메일 끝 보내는 곳 명칭·연락처 |
@@ -103,7 +123,7 @@ npx wrangler deploy
 | 광고성 정보 수신 동의 여부와 동의 일시 (선택) | 주간 메일 끝 Define404 신청서 작성 도움 안내 | 동의한 날부터 2년. 철회하거나 수신 거부하면 바로 끝납니다 |
 | 동의·철회 일시, 발송 기록 (메일 주소 없이 계정 번호로만) | 동의 증빙, 같은 주 중복 발송 방지 | 계속 남깁니다 |
 
-- 개인정보 보호법 제15조 제2항: 필수 동의 "내용 보기"에 목적, 항목, 보유·이용 기간, 동의 거부 권리와 거부 시 불이익(구독 불가)을 적었습니다. 처리 위탁(Cloudflare, Resend)과 국외 이전 가능성도 적었습니다. 국외 이전 고지(이전 국가, 일시, 방법, 받는 자)는 더 구체적으로 적어야 할 수 있습니다
+- 개인정보 보호법 제15조 제2항: 필수 동의 "내용 보기"에 목적, 항목, 보유·이용 기간, 동의 거부 권리와 거부 시 불이익(구독 불가)을 적었습니다. 처리 위탁(Cloudflare, Inc.와 Google LLC, 둘 다 미국)과 국외 이전도 적었고, 이전 국가·일시·방법·받는 자 같은 자세한 내용은 `PRIVACY_URL`의 개인정보 처리방침으로 연결합니다
 - 개인정보 보호법 제22조 제1항·제5항: 광고성 정보 수신 동의는 필수 동의와 따로 받는 선택 칸이고, 처음에 체크되어 있지 않습니다. 동의하지 않아도 지원사업 메일은 똑같이 받습니다
 - 정보통신망법 제50조 제1항·제2항: 주간 메일 자체는 구독자가 직접 신청한 정보 제공으로 보고 광고 동의 없이 보냅니다. 메일 끝 "신청서 작성 도움 문의"는 Define404의 영리 목적 안내라 광고로 보고, 유효한 광고 수신 동의가 있는 분께만 넣습니다. 철회나 수신 거부 뒤에는 넣지 않습니다
 - 제50조 제3항: 야간 전송 동의는 따로 받지 않습니다. 광고 안내는 실제 보내는 시각이 한국 시간 08~21시일 때만 넣고, 그 밖의 시각에는 빼고 보냅니다. 주간 발송은 월요일 09:00입니다
@@ -143,7 +163,7 @@ npx wrangler dev --test-scheduled --var MOCK:1
 ## 시험하지 못한 것
 
 - 실제 기업마당 API 호출. 응답 모양은 안내 화면의 예시 기준이며 `{"jsonArray": {"item": [...]}}`, `{"jsonArray": [...]}` 둘 다 받도록 짰습니다. "상시", "예산 소진 시까지" 같은 신청기간 표기는 끝 날짜가 없으면 상시로 처리합니다
-- 실제 Resend 발송, 실제 Workers AI 요약 호출
+- 실제 Resend 발송, 실제 Workers AI 요약 호출 (Gmail API 발송은 로컬 워커에서 실제로 보내 확인했습니다)
 - 배포된 Cloudflare 환경의 요청 제한, Cron 실행 시각, 두 Cron(주간 발송, 매일 정리)을 `event.cron` 문자열로 나누는 부분
 - 메일 프로그램별 HTML 표시 (브라우저로만 확인)
 - 구독자가 많을 때: 한 번 실행에 200명까지 보내고 나머지는 같은 주 다음 실행에서 이어 보냅니다. 수천 명 규모면 Queues로 나눠야 합니다
@@ -161,4 +181,4 @@ npx wrangler dev --test-scheduled --var MOCK:1
 
 ## English
 
-jiwon-meo (지원냥, "jiwon-nyang") is an open-source weekly digest of Korean government support programs for small business owners. Subscribers enter their region (province and district), industry, business type, years in business and interest areas once, confirm by email (double opt-in), and receive a Korean email every Monday 09:00 KST listing matching programs from the Bizinfo (bizinfo.go.kr) open API, with programs closing within 7 days at the top and a one-line reason for each match. A consultant mode lets tax accountants and consultants manage up to 30 client profiles in one account, with the digest grouped by client. Every email carries signed (HMAC) manage and unsubscribe links plus RFC 8058 one-click unsubscribe. Optional marketing consent is collected separately (unchecked by default), ads are added only for consenting subscribers and only when sent between 08:00 and 21:00 KST with a "(광고)" subject prefix and an ad-only opt-out link, every consent change triggers a result notice email, and marketing consent expires after 2 years. It runs on Cloudflare Workers (Hono), D1, Cron Triggers and optional Workers AI summaries, and sends through Resend. Without an API key it runs on a clearly marked fictional sample dataset. MIT licensed.
+jiwon-meo (지원냥, "jiwon-nyang") is an open-source weekly digest of Korean government support programs for small business owners. Subscribers enter their region (province and district), industry, business type, years in business and interest areas once, confirm by email (double opt-in), and receive a Korean email every Monday 09:00 KST listing matching programs from the Bizinfo (bizinfo.go.kr) open API, with programs closing within 7 days at the top and a one-line reason for each match. A consultant mode lets tax accountants and consultants manage up to 30 client profiles in one account, with the digest grouped by client. Every email carries signed (HMAC) manage and unsubscribe links plus RFC 8058 one-click unsubscribe. Optional marketing consent is collected separately (unchecked by default), ads are added only for consenting subscribers and only when sent between 08:00 and 21:00 KST with a "(광고)" subject prefix and an ad-only opt-out link, every consent change triggers a result notice email, and marketing consent expires after 2 years. It runs on Cloudflare Workers (Hono), D1, Cron Triggers and optional Workers AI summaries, and sends through the Gmail API (send-only OAuth refresh token) or Resend. Without a Bizinfo API key the weekly send is skipped in production; a clearly marked fictional sample dataset is used only in local mock mode. MIT licensed.

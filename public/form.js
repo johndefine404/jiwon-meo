@@ -5,8 +5,7 @@
   let META = null;
   async function meta() {
     if (!META) {
-      const r = await fetch("/api/meta");
-      META = await r.json();
+      META = fetch("/api/meta").then((r) => r.json());
     }
     return META;
   }
@@ -167,5 +166,12 @@
     return data;
   }
 
-  window.Jiwon = { editor, show, tokenFromHash, send, el };
+  // 개인정보 처리방침 주소는 서버 설정(PRIVACY_URL)을 따른다. 못 받으면 HTML 의 기본 주소를 그대로 둔다
+  meta()
+    .then((m) => {
+      if (m && m.privacyUrl) document.querySelectorAll("a[data-privacy]").forEach((a) => (a.href = m.privacyUrl));
+    })
+    .catch(() => {});
+
+  window.Jiwon = { editor, show, tokenFromHash, send, el, meta };
 })();

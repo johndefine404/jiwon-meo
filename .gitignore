@@ -11,3 +11,6 @@ secrets/
 *.key
 *.log
 .DS_Store
+
+# 운영 배포 설정 (D1 id, 실제 주소). 저장소에 올리지 않는다
+wrangler.prod.toml

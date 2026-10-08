@@ -23,10 +23,17 @@ export function adHourOk(ms: number): boolean {
   return h >= 8 && h < 21;
 }
 
-export async function loadPrograms(env: Env, today: string): Promise<{ programs: Program[]; sample: boolean }> {
+// 공고 데이터가 연결되어 있는가. 운영에서 기업마당 키가 없으면 예시 공고를 구독자에게 보내지 않는다
+export function dataReady(env: Env): boolean {
+  return env.MOCK === "1" || !!env.BIZINFO_API_KEY;
+}
+
+// 키가 없고 MOCK 도 아니면 null (주간 발송을 건너뛴다). MOCK=1 이면 예시 데이터
+export async function loadPrograms(env: Env, today: string): Promise<{ programs: Program[]; sample: boolean } | null> {
   if (env.BIZINFO_API_KEY && env.MOCK !== "1") {
     return { programs: await fetchLive(env.BIZINFO_API_KEY), sample: false };
   }
+  if (env.MOCK !== "1") return null;
   return { programs: loadFixture(fixture as { anchor: string; items: BizinfoItem[] }, today), sample: true };
 }
 
@@ -93,7 +100,12 @@ export async function runWeekly(env: Env, scheduledMs = Date.now()): Promise<{ w
 
   await cleanupPending(db, scheduledMs);
 
-  const { programs, sample } = await loadPrograms(env, today);
+  const loaded = await loadPrograms(env, today);
+  if (!loaded) {
+    console.log(`[cron] week=${week} skipped: BIZINFO_API_KEY 가 없어 주간 발송을 건너뜁니다 (예시 공고는 보내지 않음)`);
+    return { week, sent: 0, skipped: 0, programs: 0 };
+  }
+  const { programs, sample } = loaded;
   const summaries = await refreshPrograms(env, programs);
 
   const { results } = await db

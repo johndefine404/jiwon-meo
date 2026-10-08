@@ -148,4 +148,6 @@ footer form .btn{width:auto;min-height:44px;font-size:14px}
   details.terms dl{grid-template-columns:1fr}
   footer form{flex-direction:column}
   footer form .btn{width:100%}
+  /* 휴대폰에서 한글 안내 글은 14px 밑으로 내리지 않는다 */
+  .panel .hint,.mail .m,.mail .why,.mail-note,.mail-head,.small,details.terms,.client-head,.field > span,.field > legend{font-size:14px}
 }

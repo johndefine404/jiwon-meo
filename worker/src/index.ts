@@ -12,7 +12,6 @@ import { kstDate, runDaily, runWeekly } from "./cron";
 import api from "./routes/api";
 
 const app = new Hono<{ Bindings: Env }>();
-const WEEKLY_CRON = "0 0 * * MON"; // wrangler.toml 의 crons 와 같은 문자열
 
 // 보안 머리말 (정적 파일은 public/_headers 가 맡는다)
 app.use("*", async (c, next) => {
@@ -90,8 +89,10 @@ app.onError((err, c) => {
 export default {
   fetch: app.fetch,
   async scheduled(event: ScheduledController, env: Env, ctx: ExecutionContext) {
-    // 월요일 09:00 KST 는 주간 발송, 나머지(매일 03:00 KST)는 정리만
-    if (event.cron === WEEKLY_CRON) ctx.waitUntil(runWeekly(env, event.scheduledTime));
+    // 정기 실행은 하루 한 번(00:00 UTC = 09:00 KST)만 쓴다. 무료 요금제의 계정당 정기 실행 수를 아끼기 위해서다.
+    // 한국 시간 월요일이면 주간 발송(정리 포함), 다른 요일은 정리만 한다.
+    const kstDay = new Date(event.scheduledTime + 9 * 3600_000).getUTCDay();
+    if (kstDay === 1) ctx.waitUntil(runWeekly(env, event.scheduledTime));
     else ctx.waitUntil(runDaily(env, event.scheduledTime));
   },
 } satisfies ExportedHandler<Env>;

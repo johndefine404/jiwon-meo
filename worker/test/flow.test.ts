@@ -140,10 +140,13 @@ describe("주간 발송", () => {
     const oneClick = mail.headers!["List-Unsubscribe"].slice(1, -1);
     const u = await app.request(new URL(oneClick).pathname + new URL(oneClick).search, { method: "POST", body: "List-Unsubscribe=One-Click", headers: { "Content-Type": "application/x-www-form-urlencoded" } }, env);
     expect(u.status).toBe(200);
-    // 화면 링크의 토큰도 같은 계정을 가리킨다 (이미 거부됐으니 이제 무효)
+    // 화면 링크의 토큰도 같은 계정을 가리킨다. 이미 거부됐으니 다시 눌러도 같은 결과만 알리고 메일은 보내지 않는다
     const pageTok = tokenFrom(mail.text, "unsubscribe");
-    expect((await post(env, "/api/unsubscribe", { token: pageTok })).status).toBe(401);
     sink.length = 0;
+    expect((await post(env, "/api/unsubscribe", { token: pageTok })).status).toBe(200);
+    expect(sink.length).toBe(0);
+    // 서명이 틀린 토큰은 여전히 거절한다
+    expect((await post(env, "/api/unsubscribe", { token: pageTok.slice(0, -2) + "xx" })).status).toBe(401);
     expect((await runWeekly(env, MONDAY + 7 * 86_400_000)).sent).toBe(0);
   });
 

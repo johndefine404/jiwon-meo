@@ -171,6 +171,20 @@ api.put("/manage", async (c) => {
   return c.json({ ok: true, message: `저장했습니다. 다음 주 메일부터 바뀐 조건으로 보내 드립니다.${notice}` });
 });
 
+const UNSUB_DONE = { ok: true, message: "수신 거부를 마쳤습니다. 메일 주소와 조건을 지웠고 더 이상 메일을 보내지 않습니다." };
+
+// 서명·용도·만료가 맞는 수신 거부(또는 조건 바꾸기) 토큰이고, 그 계정이 이미 수신 거부 상태인가
+async function alreadyUnsubscribed(c: any, token: unknown): Promise<boolean> {
+  if (typeof token !== "string") return false;
+  for (const p of ["unsub", "manage"] as Purpose[]) {
+    const payload = await verifyToken(c.env.TOKEN_SECRET, token, p);
+    if (!payload) continue;
+    const acc = await getAccountById(c.env.DB, payload.a);
+    return !!acc && acc.status === "unsubscribed";
+  }
+  return false;
+}
+
 // 수신 거부. 화면 버튼(JSON token), 조건 바꾸기 화면(Bearer), 메일 앱의 한 번 누르기(RFC 8058, ?t=) 모두 받는다
 api.post("/unsubscribe", async (c) => {
   let token: string | undefined = c.req.query("t") || bearer(c);
@@ -179,13 +193,17 @@ api.post("/unsubscribe", async (c) => {
     token = body?.token;
   }
   const acc = await accountFrom(c, token, ["unsub", "manage"]);
-  if (!acc) return c.json(INVALID, 401);
+  if (!acc) {
+    // 이미 거부한 계정의 서명이 맞는 링크를 다시 누른 경우 (메일 앱 한 번 누르기 뒤 화면 버튼 등): 같은 결과를 다시 알린다
+    if (await alreadyUnsubscribed(c, token)) return c.json(UNSUB_DONE);
+    return c.json(INVALID, 401);
+  }
   if (acc.status !== "unsubscribed") {
     await unsubscribe(c.env.DB, acc.id);
     // 광고 수신 동의가 남아 있던 분께는 동의 철회 처리 결과를 한 번 알린다 (메일 주소는 이미 지웠고, 이 한 통에만 쓴다)
     if (acc.marketing_consent) await notifyMarketing(c, acc, acc.email, "unsubscribed", nowIso());
   }
-  return c.json({ ok: true, message: "수신 거부를 마쳤습니다. 메일 주소와 조건을 지웠고 더 이상 메일을 보내지 않습니다." });
+  return c.json(UNSUB_DONE);
 });
 
 // 광고 수신만 거부 (지원사업 메일은 계속 받는다). 주간 메일의 "광고 수신만 거부" 화면 버튼(JSON token)과 조건 바꾸기 화면(Bearer)

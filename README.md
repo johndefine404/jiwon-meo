@@ -150,7 +150,7 @@ npx wrangler dev --test-scheduled --var MOCK:1
 
 ## 만든 곳
 
-[Define404](https://define404.com)
+[Define404](https://contact.define404.com)
 
 설치, 조건 설계, 신청서 작성 도움은 [contact.define404.com](https://contact.define404.com)으로 문의해 주세요.
 

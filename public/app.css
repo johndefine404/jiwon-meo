@@ -1,4 +1,6 @@
 /* [Define404] 지원냥 화면 */
+/* hidden 속성이 .btn 같은 display 규칙에 지지 않게 */
+[hidden]{display:none!important}
 :root{
   --ink:#1B1F1D; --sub:#5B605C; --faint:#8A8E89; --line:#E3E0D8; --line-2:#CFCBC1;
   --paper:#F7F5F0; --card:#FFFFFF; --sunk:#EFEDE7;

@@ -20,6 +20,7 @@
       a.href = r.manageUrl;
       a.hidden = false;
       document.querySelector("h1").textContent = "구독을 시작했습니다";
+      document.querySelector("p.d").textContent = "조건은 아래 버튼에서 언제든 확인하고 바꾸실 수 있습니다.";
       J.show(msg, "다음 주 월요일 오전 9시부터 보내 드립니다. 조건 바꾸기 링크는 매주 메일 아래에도 있습니다.", true);
     } catch (e) {
       go.disabled = false;

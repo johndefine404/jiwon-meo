@@ -158,7 +158,7 @@ export function normalize(item: BizinfoItem, opts: { sample?: boolean } = {}): P
 }
 
 // 문서의 JSON 예시는 {"jsonArray": {..., "item": [...]}} 모양이다.
-// 실제 응답이 {"jsonArray": [...]} 이거나 {"item": [...]} 여도 받는다.
+// 실제 응답은 {"jsonArray": [...]} 이다 (2026-10-09 확인). {"item": [...]} 여도 받는다.
 export function extractItems(body: unknown): BizinfoItem[] {
   const b = body as any;
   if (!b || typeof b !== "object") return [];
@@ -178,7 +178,7 @@ export function buildUrl(key: string, searchCnt = 500): string {
   return u.toString();
 }
 
-// 실제 API 호출 (키가 있을 때만). 시험되지 않은 경로.
+// 실제 API 호출 (키가 있을 때만). 2026-10-09 실제 키로 Workers 에서 호출해 확인했다.
 export async function fetchLive(key: string, fetcher: typeof fetch = fetch): Promise<Program[]> {
   const res = await fetcher(buildUrl(key), { headers: { Accept: "application/json" } });
   if (!res.ok) throw new Error(`bizinfo ${res.status}`);

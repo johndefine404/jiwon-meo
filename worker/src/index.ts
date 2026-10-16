@@ -86,8 +86,20 @@ app.onError((err, c) => {
   return c.json({ ok: false, error: "잠시 후 다시 시도해 주세요" }, 500);
 });
 
-export default {
-  fetch: app.fetch,
+const worker = {
+  // 정기 실행은 define404-slack 워커가 이 주소로 대신 부른다 (무료 요금제 계정당 정기 실행 5개 한도)
+  async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const u = new URL(req.url);
+    if (u.pathname === "/__cron") {
+      if (req.method !== "POST" || !env.CRON_SECRET || req.headers.get("x-cron-secret") !== env.CRON_SECRET) {
+        return new Response("Not Found", { status: 404 });
+      }
+      const t = Number(u.searchParams.get("t")) || Date.now();
+      await worker.scheduled({ scheduledTime: t, cron: "", noRetry() {} } as ScheduledController, env, ctx);
+      return new Response("ok");
+    }
+    return app.fetch(req, env, ctx);
+  },
   async scheduled(event: ScheduledController, env: Env, ctx: ExecutionContext) {
     // 정기 실행은 하루 한 번(00:00 UTC = 09:00 KST)만 쓴다. 무료 요금제의 계정당 정기 실행 수를 아끼기 위해서다.
     // 한국 시간 월요일이면 주간 발송(정리 포함), 다른 요일은 정리만 한다.
@@ -96,5 +108,7 @@ export default {
     else ctx.waitUntil(runDaily(env, event.scheduledTime));
   },
 } satisfies ExportedHandler<Env>;
+
+export default worker;
 
 export { app };

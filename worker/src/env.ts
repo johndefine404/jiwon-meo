@@ -4,6 +4,7 @@ export interface Env {
   DB: D1Database;
   AI?: Ai;
   LIMITER?: RateLimit;
+  CRON_SECRET?: string; // define404-slack 워커가 /__cron 을 부를 때 쓰는 비밀값
 
   // 메일 링크 서명 비밀값 (32자 이상). npx wrangler secret put TOKEN_SECRET
   TOKEN_SECRET: string;
